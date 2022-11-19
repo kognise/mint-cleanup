@@ -1,0 +1,13 @@
+{
+	"name": "citi-to-mint",
+	"version": "1.0.0",
+	"main": "index.js",
+	"license": "MIT",
+	"dependencies": {
+		"dotenv": "^16.0.3",
+		"imapflow": "^1.0.114",
+		"node-fetch-commonjs": "^3.2.4",
+		"plaid": "^12.1.0",
+		"puppeteer": "^19.2.2"
+	}
+}

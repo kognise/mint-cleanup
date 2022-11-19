@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang='en'>
+	<head>
+		<meta charset='utf-8'>
+		<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+		<title>Plaid Link</title>
+	</head>
+	<body>
+		<script src='https://cdn.plaid.com/link/v2/stable/link-initialize.js'></script>
+		<script>
+			const plaid = Plaid.create({
+				token: prompt('Link token?'),
+				onSuccess: console.log
+			})
+			plaid.open()
+		</script>
+	</body>
+</html>
