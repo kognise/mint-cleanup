@@ -148,7 +148,9 @@ const overviewOrOtp = async (page) => await Promise.race([
 ])
 
 const go = async () => {
-	const browser = await puppeteer.launch()
+	const browser = await puppeteer.launch({
+		args: ['--no-sandbox', '--disable-setuid-sandbox']
+	})
 	console.log('Browser launched')
 
 	const page = await browser.newPage()
