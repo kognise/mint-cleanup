@@ -31,7 +31,7 @@ const collectOtp = async (clickTime) => {
 
 			if (clickTime < message.envelope.date && message.envelope.subject.endsWith('Mint code')) {
 				try {
-					await gmail.messageDelete(message.uid)
+					await gmail.messageDelete(message.uid, { uid: true })
 				} catch (error) {
 					console.error(error)
 				}
