@@ -22,7 +22,7 @@ const collectOtp = async (clickTime) => {
 	await delay(1000)
 	
 	for (let i = 0; i < 12; i++) {
-		await gmail.mailboxOpen('INBOX', { readOnly: true })
+		await gmail.mailboxOpen('INBOX')
 		try {
 			const message = await gmail.fetchOne(gmail.mailbox.exists, { envelope: true })
 
@@ -30,7 +30,11 @@ const collectOtp = async (clickTime) => {
 			message.envelope.date.setSeconds(message.envelope.date.getSeconds() + 15)
 
 			if (clickTime < message.envelope.date && message.envelope.subject.endsWith('Mint code')) {
-				try { await gmail.messageDelete(message.uid) } catch {}
+				try {
+					await gmail.messageDelete(message.uid)
+				} catch (error) {
+					console.error(error)
+				}
 				await gmail.mailboxClose()
 				await gmail.logout()
 				return message.envelope.subject.split(' ')[0]
