@@ -17,6 +17,13 @@ const gmail = new ImapFlow({
     }
 })
 
+const stream2buffer = (stream) => new Promise((resolve, reject) => {
+	const buffer = []
+	stream.on('data', (chunk) => buffer.push(chunk))
+	stream.on('end', () => resolve(Buffer.concat(buffer)))
+	stream.on('error', (error) => reject(error))
+})
+
 const collectOtp = async (clickTime) => {
 	await gmail.connect()
 	await delay(1000)
@@ -30,6 +37,9 @@ const collectOtp = async (clickTime) => {
 			message.envelope.date.setSeconds(message.envelope.date.getSeconds() + 15)
 
 			if (clickTime < message.envelope.date && message.envelope.subject.endsWith('Mint code')) {
+				const downloaded = await gmail.download(message.uid, undefined, { uid: true })
+				const content = (await stream2buffer(downloaded.content)).toString()
+
 				try {
 					await gmail.messageDelete(message.uid, { uid: true })
 				} catch (error) {
@@ -37,9 +47,11 @@ const collectOtp = async (clickTime) => {
 				}
 				await gmail.mailboxClose()
 				await gmail.logout()
-				return message.envelope.subject.split(' ')[0]
+				return content.match(/[\s>](\d{6})[\s<]/)[1]
 			}
-		} catch {}
+		} catch (error) {
+			console.warn(error)
+		}
 		await gmail.mailboxClose()
 		await delay(5 * 1000)
 	}
@@ -181,7 +193,7 @@ const go = async () => {
 
 		console.log('Collecting OTP from Gmail...')
 		const otp = await collectOtp(clickTime)
-		console.log('OTP collected!')
+		console.log(`OTP collected! ${otp}`)
 		await page.type('[data-testid=VerifyOtpInput]', otp)
 		await Promise.all([
 			overviewOrOtp(page),
