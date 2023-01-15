@@ -6,5 +6,7 @@ module.exports.categoryMatchers = [
 	[ /BC BURLINGTON CHURCH S BURLINGTON VT/, 'Coffee Shops' ],
 	[ /ACTRANSIT [A-Z0-9]+ SAN FRANCISCO CA/, 'Public Transportation' ],
 	[ /HOMEPORT BURLINGTON VT/, 'Furnishings' ],
-	[ /ExxonMobil/, 'Fast Food' ]
+	[ /ExxonMobil/, 'Fast Food' ],
+	[ /Comcast/, 'Internet' ],
+	[ /BOLTON VALLEY RESORT/, 'Entertainment' ],
 ]
