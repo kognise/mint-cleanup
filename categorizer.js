@@ -9,4 +9,7 @@ module.exports.categoryMatchers = [
 	[ /ExxonMobil/, 'Fast Food' ],
 	[ /Comcast/, 'Internet' ],
 	[ /BOLTON VALLEY RESORT/, 'Entertainment' ],
+	[ /CITY MARKET/, 'Groceries' ],
+	[ /SHELBURNE MARKE/, 'Groceries' ],
+	[ /HANNAFORD/, 'Groceries' ],
 ]
