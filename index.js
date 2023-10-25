@@ -1,64 +1,10 @@
 const puppeteer = require('puppeteer')
 const fetch = require('node-fetch-commonjs')
-const { ImapFlow } = require('imapflow')
 const { plaid } = require('./plaid-auth/plaid')
-const { oneYearFromNow, delay, url } = require('./util')
-const { maxHistory, email, intuitPassword, gmailPassword, intuitApiKey, plaidAccessToken } = require('./env')
+const { oneYearFromNow, url } = require('./util')
+const { maxHistory, email, intuitPassword, intuitApiKey, plaidAccessToken, intuitOtpSecret } = require('./env')
 const { categoryMatchers } = require('./categorizer')
-
-const gmail = new ImapFlow({
-    host: 'imap.gmail.com',
-    port: 993,
-    secure: true,
-	logger: false,
-    auth: {
-        user: email,
-        pass: gmailPassword
-    }
-})
-
-const stream2buffer = (stream) => new Promise((resolve, reject) => {
-	const buffer = []
-	stream.on('data', (chunk) => buffer.push(chunk))
-	stream.on('end', () => resolve(Buffer.concat(buffer)))
-	stream.on('error', (error) => reject(error))
-})
-
-const collectOtp = async (clickTime) => {
-	await gmail.connect()
-	await delay(1000)
-	
-	for (let i = 0; i < 12; i++) {
-		await gmail.mailboxOpen('INBOX')
-		try {
-			const message = await gmail.fetchOne(gmail.mailbox.exists, { envelope: true })
-
-			// Weird buffer needed due to time inaccuracies:
-			message.envelope.date.setSeconds(message.envelope.date.getSeconds() + 15)
-
-			if (clickTime < message.envelope.date && message.envelope.subject.endsWith('Mint code')) {
-				const downloaded = await gmail.download(message.uid, undefined, { uid: true })
-				const content = (await stream2buffer(downloaded.content)).toString()
-
-				try {
-					await gmail.messageDelete(message.uid, { uid: true })
-				} catch (error) {
-					console.error(error)
-				}
-				await gmail.mailboxClose()
-				await gmail.logout()
-				return content.match(/[\s>](\d{6})[\s<]/)[1]
-			}
-		} catch (error) {
-			console.warn(error)
-		}
-		await gmail.mailboxClose()
-		await delay(5 * 1000)
-	}
-	
-	await gmail.logout()
-	throw new Error('Could not collect OTP in time')
-}
+const { authenticator } = require('otplib')
 
 const isOverview = async (page) => page.url().startsWith('https://mint.intuit.com/overview')
 
@@ -140,13 +86,14 @@ const getPlaidTransactions = async (rangeConfig) => {
 }
 
 const stripRegexes = [
-	/^(.+)\sDebit Card Purchase \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
-	/^(.+)\sMobile Purchase Sign Based \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
-	/^(.+)\sMobile Purchase Returns \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
-	/^(.+)\sDebit PIN Purchase$/,
-	/^(.+)\sMobile Purchase PIN Based$/,
-	/^ONLINE Reference # \d{5,7}\s(.+)\s\d{2}\/(?:\d{2} )?(?:\d{2}:\d{2}[ap] )?#\d{4}$/,
-	/^(.+)\s\d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
+	/^(.+) Debit Card Purchase \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
+	/^(.+) Mobile Purchase Sign Based \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
+	/^(.+) Mobile Purchase Returns \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
+	/^(.+) Debit PIN Purchase$/,
+	/^(.+) Mobile Purchase PIN Based$/,
+	/^ONLINE Reference # \d{5,7} (.+) \d{2}(?:\/\d{2} \d{2})?(?::\d{2}[ap] )?#\d{4}$/,
+	/^\d+ ACH Electronic Debit - (.+)$/,
+	/^(.+) \d{2}\/\d{2} (?:\d{2}:\d{2}[ap] )?#\d{4}$/,
 	/^# \d{2,4} (Check)$/
 ]
 
@@ -158,21 +105,19 @@ const transactionName = (name) => {
 	return null
 }
 
-const overviewOrOtp = async (page) => await Promise.race([
-	page.waitForSelector('.pfm-overview-ui'),
-	page.waitForSelector('[data-testid=challengePickerOption_EMAIL_OTP]'),
-])
-
 const go = async () => {
 	const browser = await puppeteer.launch({
-		args: ['--no-sandbox', '--disable-setuid-sandbox']
+		args: ['--no-sandbox', '--disable-setuid-sandbox'],
+		headless: false
 	})
 	console.log('Browser launched')
 
 	const page = await browser.newPage()
-	await page.goto(url('https://accounts.intuit.com/index.html', {
-		offering_id: 'Intuit.ifs.mint',
-		redirect_url: 'https://mint.intuit.com/overview.event'
+	await page.goto(url('https://accounts.intuit.com/app/sign-in', {
+		app_group: 'Mint',
+		asset_alias: 'Intuit.ifs.mint',
+		namespace_id: '50000026',
+		redirect_uri: 'https://mint.intuit.com/overview.event'
 	}))
 
 	console.log('Entering email...')
@@ -183,24 +128,27 @@ const go = async () => {
 	await page.waitForSelector('[data-testid=currentPasswordInput]')
 	await page.type('[data-testid=currentPasswordInput]', intuitPassword)
 	await Promise.all([
-		overviewOrOtp(page),
+		Promise.race([
+			page.waitForSelector('.pfm-overview-ui'),
+			page.waitForSelector('[data-testid=VerifySoftTokenSubmitButton]')
+		]),
 		page.click('[data-testid=passwordVerificationContinueButton]')
 	])
 
 	if (!await isOverview(page)) {
-		const clickTime = new Date()
-		await page.click('[data-testid=challengePickerOption_EMAIL_OTP]')
+		const otp = authenticator.generate(intuitOtpSecret)
+		console.log(`Generated OTP: ${otp}`)
 
-		console.log('Collecting OTP from Gmail...')
-		const otp = await collectOtp(clickTime)
-		console.log(`OTP collected! ${otp}`)
-		await page.type('[data-testid=VerifyOtpInput]', otp)
+		await page.type('[data-testid=VerifySoftTokenInput]', otp)
 		await Promise.all([
-			overviewOrOtp(page),
-			page.click('[data-testid=VerifyOtpSubmitButton]')
+			page.waitForSelector('.pfm-overview-ui'),
+			page.click('[data-testid=VerifySoftTokenSubmitButton]')
 		])
 	}
-	if (!await isOverview(page)) throw new Error('Could not log in')
+	if (!await isOverview(page)) {
+		while(1){}
+		throw new Error('Could not log in')
+	}
 
 	console.log('Logged in and on Mint dashboard!')
 
@@ -212,6 +160,7 @@ const go = async () => {
 	while (true) {
 		console.log(`Offset ${plaidOffset} of Plaid transactions...`)
 		const data = await getPlaidTransactions({ count: plaidPageSize, offset: plaidOffset })
+		require('fs').writeFileSync('test.json', JSON.stringify(data, null, 2))
 		plaidTransactions = plaidTransactions.concat(data.transactions)
 		if (plaidTransactions.length >= Math.min(data.total, maxHistory)) break
 		plaidOffset += plaidPageSize

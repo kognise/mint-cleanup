@@ -11,7 +11,7 @@ module.exports = {
 	maxHistory: Number(requireEnv('MAX_HISTORY')),
 	email: requireEnv('EMAIL'),
 	intuitPassword: requireEnv('INTUIT_PASSWORD'),
-	gmailPassword: requireEnv('GMAIL_PASSWORD'),
+	intuitOtpSecret: requireEnv('INTUIT_OTP_SECRET'),
 	intuitApiKey: requireEnv('INTUIT_API_KEY'),
 	plaidClientId: requireEnv('PLAID_CLIENT_ID'),
 	plaidSecret: requireEnv('PLAID_SECRET'),

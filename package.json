@@ -5,8 +5,8 @@
 	"license": "MIT",
 	"dependencies": {
 		"dotenv": "^16.0.3",
-		"imapflow": "^1.0.114",
 		"node-fetch-commonjs": "^3.2.4",
+		"otplib": "^12.0.1",
 		"plaid": "^12.1.0",
 		"puppeteer": "^19.2.2"
 	}
